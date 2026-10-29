@@ -43,6 +43,8 @@ Base URL: `/api/leads`
 | ------ | ----------------- | --------------------------------------------- |
 | GET    | `/api/leads`      | List leads. Filters: `?status=won&search=ada` |
 | GET    | `/api/leads/stats`| Aggregated counts and pipeline value          |
+| GET    | `/api/leads/export`| Download all leads as a JSON file            |
+| POST   | `/api/leads/import`| Import leads from JSON (see below)           |
 | GET    | `/api/leads/:id`  | Get one lead                                  |
 | POST   | `/api/leads`      | Create a lead                                 |
 | PUT    | `/api/leads/:id`  | Update a lead (partial updates allowed)       |
@@ -58,6 +60,28 @@ curl -X POST http://localhost:3000/api/leads \
   -H 'Content-Type: application/json' \
   -d '{"name":"Ada Lovelace","email":"ada@example.com","status":"new","value":1000}'
 ```
+
+### Export / import
+
+Export everything to a file:
+
+```bash
+curl -O -J http://localhost:3000/api/leads/export
+```
+
+Import from a file. The body can be either the export envelope (`{ "leads": [...] }`)
+or a bare array of lead objects. `id`, `created_at` and `updated_at` are ignored —
+each imported lead gets a new id. Invalid entries are skipped and reported:
+
+```bash
+curl -X POST http://localhost:3000/api/leads/import \
+  -H 'Content-Type: application/json' \
+  --data-binary @leads-2026-01-01.json
+# => {"inserted":6,"skipped":0,"errors":[]}
+```
+
+The web UI exposes the same behaviour via the **Import** and **Export** buttons in
+the header.
 
 ## Project layout
 

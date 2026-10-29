@@ -86,6 +86,72 @@ router.get('/stats', async (_req, res, next) => {
   }
 });
 
+router.get('/export', async (_req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM leads ORDER BY id');
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="leads-${stamp}.json"`);
+    res.send(
+      JSON.stringify({ exported_at: new Date().toISOString(), count: rows.length, leads: rows }, null, 2)
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/import', async (req, res, next) => {
+  try {
+    const payload = Array.isArray(req.body) ? req.body : req.body?.leads;
+    if (!Array.isArray(payload)) {
+      return res
+        .status(400)
+        .json({ error: 'Expected a JSON array of leads, or an object with a "leads" array' });
+    }
+
+    const conn = await pool.getConnection();
+    const inserted = [];
+    const errors = [];
+
+    try {
+      await conn.beginTransaction();
+      for (const [index, item] of payload.entries()) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          errors.push({ index, error: 'entry is not a lead object' });
+          continue;
+        }
+
+        const fieldErrors = validate(item);
+        if (fieldErrors.length) {
+          errors.push({ index, error: fieldErrors.join('; ') });
+          continue;
+        }
+
+        const data = pickFields(item);
+        const fields = Object.keys(data);
+        const placeholders = fields.map(() => '?').join(', ');
+        const values = fields.map((f) => data[f]);
+
+        const [result] = await conn.query(
+          `INSERT INTO leads (${fields.join(', ')}) VALUES (${placeholders})`,
+          values
+        );
+        inserted.push(result.insertId);
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    res.status(201).json({ inserted: inserted.length, skipped: errors.length, errors });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT * FROM leads WHERE id = ?', [req.params.id]);

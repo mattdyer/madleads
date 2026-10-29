@@ -34,6 +34,7 @@ body {
 }
 
 .brand { display: flex; align-items: center; gap: 10px; }
+.actions { display: flex; align-items: center; gap: 10px; }
 .brand .logo { color: var(--primary); font-size: 20px; }
 .brand h1 { font-size: 20px; margin: 0; letter-spacing: -0.02em; }
 

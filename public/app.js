@@ -7,6 +7,7 @@ const api = {
   create: (data) => request('/api/leads', { method: 'POST', body: data }),
   update: (id, data) => request(`/api/leads/${id}`, { method: 'PUT', body: data }),
   remove: (id) => request(`/api/leads/${id}`, { method: 'DELETE' }),
+  import: (payload) => request('/api/leads/import', { method: 'POST', body: payload }),
 };
 
 async function request(url, { method = 'GET', body } = {}) {
@@ -163,6 +164,52 @@ els.body.addEventListener('click', async (e) => {
 });
 
 document.getElementById('new-lead-btn').addEventListener('click', () => openModal());
+
+async function exportLeads() {
+  try {
+    const res = await fetch('/api/leads/export');
+    if (!res.ok) throw new Error(`Export failed (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leads-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast('Leads exported');
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+const importFile = document.getElementById('import-file');
+document.getElementById('export-btn').addEventListener('click', exportLeads);
+document.getElementById('import-btn').addEventListener('click', () => importFile.click());
+
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  importFile.value = '';
+  if (!file) return;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    toast('That file is not valid JSON', true);
+    return;
+  }
+
+  try {
+    const result = await api.import(parsed);
+    const skipped = result.skipped ? `, skipped ${result.skipped}` : '';
+    toast(`Imported ${result.inserted} lead(s)${skipped}`, result.skipped > 0);
+    await Promise.all([loadLeads(), loadStats()]);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 els.modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !els.modal.hidden) closeModal(); });
 
